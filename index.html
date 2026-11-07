@@ -335,7 +335,7 @@ const msgKey = (type, id) => "bb-msgs-" + type + "-" + id;
     const seen = new Set(), merged = [];
     for (const m of buckets[type]) if (m && m.id && !seen.has(m.id)) { seen.add(m.id); merged.push(m); }
     merged.sort((a, b) => a.ts - b.ts);
-    if (merged.length) store.set(msgKey(type, HOUSE), merged.slice(-1000));
+    if (merged.length) store.set(msgKey(type, HOUSE), merged.slice(-5000));
   }
   store.set("bb-mig", 3);
 })();
@@ -630,7 +630,7 @@ function mergeMsgs(list){
   for (const m of list) if (validMsg(m) && !have.has(m.id)) { S.msgs.push({ id: m.id, text: m.text.slice(0, 2000), from: m.from, ts: m.ts, ok: m.from !== ME }); have.add(m.id); added = true; }
   if (!added) return false;
   S.msgs.sort((a, b) => a.ts - b.ts);
-  S.msgs = S.msgs.slice(-1000);
+  S.msgs = S.msgs.slice(-5000);
   store.set(msgKey(S.type, S.id), S.msgs);
   renderMsgs();
   return true;
