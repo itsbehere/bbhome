@@ -161,6 +161,15 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--rose);outline-o
 .egrid button{height:42px;font-size:26px;border-radius:12px;line-height:1;transition:transform .1s}
 .egrid button:hover{background:var(--blush);transform:scale(1.15)}
 .egrid .eempty{grid-column:1/-1;text-align:center;font-size:32px;opacity:.5;padding:20px}
+.msg{user-select:text;-webkit-touch-callout:none}
+.msg.hearted{margin-bottom:12px}
+.hearts{position:absolute;bottom:-12px;display:flex;align-items:center;gap:2px;padding:2px 7px;border-radius:999px;background:#fff;font-size:13px;line-height:1.3;color:var(--berry);font-weight:600;
+  box-shadow:0 3px 10px -4px rgba(224,69,127,.6);cursor:pointer}
+.msg.me .hearts{left:-6px}
+.msg.them .hearts{right:-6px}
+.heart-pop{position:fixed;z-index:50;pointer-events:none;font-size:46px;transform:translate(-50%,-50%) scale(.2);animation:hpop .7s ease-out forwards}
+@keyframes hpop{40%{transform:translate(-50%,-60%) scale(1.15);opacity:1}100%{transform:translate(-50%,-110%) scale(.9);opacity:0}}
+@media (prefers-reduced-motion:reduce){.heart-pop{animation-duration:.01s}}
 .msg.big{background:none!important;box-shadow:none!important;font-size:44px;line-height:1.1;padding:2px 4px}
 .msg.big time{font-size:11px;color:var(--plum)}
 .send{width:48px;height:48px;border-radius:50%;flex:none;background:linear-gradient(160deg,var(--rose),var(--berry));font-size:20px;display:grid;place-items:center}
@@ -414,6 +423,7 @@ function enterRoom(type, id){
   S.chat.input.addEventListener("input", onTypingInput);
   S.chat.msgs.addEventListener("scroll", onMsgsScroll, { passive: true });
   setupEmoji(chatBox);
+  setupHearts();
   S.chat.input.addEventListener("blur", () => sendTyping(false));
   paintNames();
   renderMsgs();
@@ -612,7 +622,7 @@ function onRelay(d){
   if (isNew) updatePresence();
   if (d.t === "here") return;
   if (d.t === "hello") {
-    relaySend({ t: "sync", msgs: S.msgs.slice(-300).map(({ id, text, from, ts }) => ({ id, text, from, ts })), timer: S.type === "s" ? timerSnapshot() : null, host: false });
+    relaySend({ t: "sync", msgs: S.msgs.slice(-300).map(({ id, text, from, ts, h }) => (h ? { id, text, from, ts, h } : { id, text, from, ts })), timer: S.type === "s" ? timerSnapshot() : null, host: false });
     return;
   }
   onData(d, null);
@@ -637,6 +647,12 @@ function onData(d, c){
     showTyping(false);
     broadcast({ t: "ack", ids: [d.m.id] });
     if (mergeMsgs([d.m], true) && d.m.from !== ME) ding();
+  } else if (d.t === "heart" && typeof d.id === "string" && typeof d.who === "string") {
+    const m = S.msgs.find(x => x.id === d.id);
+    if (m && mergeHearts(m, { [d.who]: d.v })) {
+      saveMsgs(); renderMsgs();
+      if (d.v[0] === 1 && d.who !== ME) { ding(); const el = S.chat.msgs.querySelector('[data-id="' + CSS.escape(m.id) + '"]'); if (el) heartPop(el); }
+    }
   } else if (d.t === "ack" && Array.isArray(d.ids)) {
     markDelivered(d.ids);
   } else if (d.t === "typing") {
@@ -660,13 +676,32 @@ function noteClock(who, theirNow){
 }
 function sortKey(m){ return m.from === ME ? m.ts : m.ts + (clockOff[m.from] || 0); }
 function fixKeys(list){ for (const m of list) if (typeof m.k !== "number") m.k = sortKey(m); return list; }
-function mergeMsgs(list, live){
-  const have = new Set(S.msgs.map(m => m.id)); let added = false;
-  for (const m of list) if (validMsg(m) && !have.has(m.id)) {
-    const k = live && m.from !== ME ? Date.now() : sortKey(m);
-    S.msgs.push({ id: m.id, text: m.text.slice(0, 2000), from: m.from, ts: m.ts, k, ok: m.from !== ME }); have.add(m.id); added = true;
+/* hearts: m.h = { personId: [1 or 0, time set on that person's device] }; newest wins */
+function cleanHearts(h){
+  const out = {};
+  if (h && typeof h === "object") for (const [who, v] of Object.entries(h)) if (Array.isArray(v) && (v[0] === 0 || v[0] === 1) && typeof v[1] === "number") out[String(who).slice(0, 40)] = [v[0], v[1]];
+  return out;
+}
+function mergeHearts(m, h){
+  let ch = false;
+  for (const [who, v] of Object.entries(cleanHearts(h))) {
+    const cur = m.h && m.h[who];
+    if (!cur || v[1] > cur[1]) { m.h = { ...(m.h || {}), [who]: v }; ch = true; }
   }
-  if (!added) return false;
+  return ch;
+}
+function mergeMsgs(list, live){
+  const byId = new Map(S.msgs.map(m => [m.id, m])); let added = false, changed = false;
+  for (const m of list) {
+    if (!validMsg(m)) continue;
+    const ex = byId.get(m.id);
+    if (ex) { if (m.h && mergeHearts(ex, m.h)) changed = true; continue; }
+    const k = live && m.from !== ME ? Date.now() : sortKey(m);
+    const nm = { id: m.id, text: m.text.slice(0, 2000), from: m.from, ts: m.ts, k, ok: m.from !== ME };
+    const h = cleanHearts(m.h); if (Object.keys(h).length) nm.h = h;
+    S.msgs.push(nm); byId.set(m.id, nm); added = true;
+  }
+  if (!added) { if (changed) { saveMsgs(); renderMsgs(); } return false; }
   S.msgs.sort((a, b) => (a.k - b.k) || (a.ts - b.ts));
   S.msgs = S.msgs.slice(-10000);
   saveMsgs();
@@ -771,6 +806,40 @@ function isBigEmoji(t){
   if (!EMOJI_ONLY.test(t) || /^[\s#*0-9]+$/.test(t)) return false;
   try { return [...new Intl.Segmenter().segment(t.replace(/\s/g, ""))].length <= 3; } catch { return t.length <= 8; }
 }
+function toggleHeart(id, el){
+  const m = S.msgs.find(x => x.id === id); if (!m) return;
+  const on = !(m.h && m.h[ME] && m.h[ME][0] === 1);
+  const v = [on ? 1 : 0, Date.now()];
+  m.h = { ...(m.h || {}), [ME]: v };
+  saveMsgs(); renderMsgs();
+  if (on && el) heartPop(el);
+  broadcast({ t: "heart", id, who: ME, v });
+}
+function heartPop(el){
+  const r = el.getBoundingClientRect(), p = document.createElement("div");
+  p.className = "heart-pop"; p.textContent = "❤️";
+  p.style.left = (r.left + r.width / 2) + "px"; p.style.top = (r.top + r.height / 2) + "px";
+  document.body.appendChild(p); setTimeout(() => p.remove(), 800);
+}
+function setupHearts(){
+  const box = S.chat.msgs; let lastTap = { id: null, t: 0 };
+  box.addEventListener("dblclick", e => {
+    const el = e.target.closest(".msg"); if (!el) return;
+    e.preventDefault(); try { getSelection().removeAllRanges(); } catch {}
+    toggleHeart(el.dataset.id, el);
+  });
+  box.addEventListener("touchend", e => {
+    const el = e.target.closest(".msg"); if (!el || e.changedTouches.length !== 1) return;
+    const now = Date.now();
+    if (lastTap.id === el.dataset.id && now - lastTap.t < 350) { e.preventDefault(); lastTap = { id: null, t: 0 }; toggleHeart(el.dataset.id, el); }
+    else lastTap = { id: el.dataset.id, t: now };
+  });
+  box.addEventListener("click", e => {
+    const b = e.target.closest(".hearts"); if (!b) return;
+    const el = b.closest(".msg"); const m = S.msgs.find(x => x.id === el.dataset.id);
+    if (m && m.h && m.h[ME] && m.h[ME][0] === 1) toggleHeart(m.id, el); // tap your own heart to take it back
+  });
+}
 function sendMsg(){
   const text = S.chat.input.value.trim();
   if (!text) return;
@@ -797,6 +866,9 @@ function renderMsgs(keepTop){
     const t = document.createElement("time"); t.textContent = fmtTime(m.k);
     if (m.from === ME) { const k = document.createElement("span"); k.className = "tick"; k.textContent = m.ok ? "✓✓" : "✓"; t.appendChild(k); }
     el.appendChild(t);
+    el.dataset.id = m.id;
+    const hs = m.h ? Object.values(m.h).filter(v => v[0] === 1).length : 0;
+    if (hs) { const hb = document.createElement("span"); hb.className = "hearts"; hb.textContent = hs > 1 ? "❤️ 2" : "❤️"; el.appendChild(hb); el.classList.add("hearted"); }
     frag.appendChild(el);
   }
   box.appendChild(frag);
