@@ -44,7 +44,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--rose);outline-o
 
 /* floating ribbons */
 .bows{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
-.bows span{position:absolute;opacity:.22;animation:float 9s ease-in-out infinite;filter:saturate(1.2)}
+.bows span{position:absolute;will-change:transform;opacity:.22;animation:float 9s ease-in-out infinite;filter:saturate(1.2)}
 @keyframes float{0%,100%{transform:translateY(0) rotate(-8deg)}50%{transform:translateY(-14px) rotate(8deg)}}
 @media (prefers-reduced-motion:reduce){.bows span,.presence .pbow,.typing span{animation:none!important}}
 
@@ -91,7 +91,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--rose);outline-o
 .typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
 @keyframes dot{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-5px);opacity:1}}
 .msg .tick{margin-left:4px;letter-spacing:-.25em}
-.who{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:rgba(255,240,246,.92);backdrop-filter:blur(6px);
+.who{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:rgba(255,240,246,.97);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .who>div{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
 .who button{position:relative;width:min(40vw,170px);aspect-ratio:1;max-width:100%;border-radius:32px;background:linear-gradient(160deg,#fff,var(--petal));
@@ -102,7 +102,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--rose);outline-o
 .mename{font-family:var(--display);font-size:20px;color:var(--berry);background:#fff;border-radius:999px;padding:6px 16px;box-shadow:0 6px 16px -10px rgba(224,69,127,.7)}
 @keyframes beat{0%,100%{transform:scale(1)}15%{transform:scale(1.18)}30%{transform:scale(1)}}
 
-.panel{background:rgba(255,255,255,.82);backdrop-filter:blur(8px);border-radius:28px;box-shadow:var(--shadow),inset 0 0 0 2px #fff;position:relative}
+.panel{background:rgba(255,255,255,.93);border-radius:28px;box-shadow:var(--shadow),inset 0 0 0 2px #fff;position:relative}
 
 /* study */
 .study{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px}
@@ -170,6 +170,26 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--rose);outline-o
 .heart-pop{position:fixed;z-index:50;pointer-events:none;font-size:46px;transform:translate(-50%,-50%) scale(.2);animation:hpop .7s ease-out forwards}
 @keyframes hpop{40%{transform:translate(-50%,-60%) scale(1.15);opacity:1}100%{transform:translate(-50%,-110%) scale(.9);opacity:0}}
 @media (prefers-reduced-motion:reduce){.heart-pop{animation-duration:.01s}}
+.quote{display:block;margin:-2px -6px 6px;padding:6px 10px;border-radius:12px;border-left:4px solid var(--rose);background:rgba(255,214,232,.55);font-size:13px;line-height:1.3;cursor:pointer;
+  max-height:3.9em;overflow:hidden;white-space:normal}
+.msg.me .quote{background:rgba(255,255,255,.25);border-left-color:#fff}
+.quote b{display:block;font-weight:600;font-size:12px;color:var(--berry)}
+.msg.me .quote b{color:#fff}
+.rbtn{position:absolute;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;background:#fff;font-size:15px;display:grid;place-items:center;
+  box-shadow:0 3px 10px -4px rgba(224,69,127,.6);opacity:0;transition:opacity .15s}
+.msg.me .rbtn{left:-40px}
+.msg.them .rbtn{right:-40px}
+.msg:hover .rbtn,.rbtn:focus-visible{opacity:1}
+@media (hover:none){.rbtn{display:none}}
+.msg.flash{animation:flash 1.2s ease}
+@keyframes flash{0%,100%{filter:none}30%{filter:brightness(1.08) drop-shadow(0 0 10px var(--rose))}}
+.msg.swiping{transition:none}
+.msg{transition:transform .18s ease}
+.replybar{display:flex;align-items:center;gap:8px;margin:0 12px;padding:8px 10px 8px 12px;border-radius:14px;border-left:4px solid var(--rose);background:var(--blush);flex:none}
+.replybar .rq{flex:1;min-width:0;font-size:13px;line-height:1.3}
+.replybar .rq b{display:block;font-size:12px;color:var(--berry)}
+.replybar .rq span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--plum)}
+.replybar button{width:30px;height:30px;border-radius:50%;background:#fff;font-size:13px;flex:none}
 .msg.big{background:none!important;box-shadow:none!important;font-size:44px;line-height:1.1;padding:2px 4px}
 .msg.big time{font-size:11px;color:var(--plum)}
 .send{width:48px;height:48px;border-radius:50%;flex:none;background:linear-gradient(160deg,var(--rose),var(--berry));font-size:20px;display:grid;place-items:center}
@@ -280,6 +300,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--rose);outline-o
     <input class="esearch" data-esearch placeholder="🔍" aria-label="🔍" autocomplete="off">
     <div class="egrid" data-egrid></div>
   </div>
+  <div class="replybar" data-replybar hidden><div class="rq"><b data-rname></b><span data-rtext></span></div><button type="button" data-rcancel aria-label="✖">✖</button></div>
   <form class="compose" data-form autocomplete="off">
     <button type="button" class="ebtn" data-ebtn aria-label="😊">😊</button>
     <input data-input maxlength="2000" placeholder="🎀" aria-label="🎀">
@@ -324,7 +345,7 @@ const ME = store.get("bb-me") || (() => { const id = rid(10); store.set("bb-me",
 
 /* ---------- decorations ---------- */
 (() => {
-  const box = $("#bows"), n = 16;
+  const box = $("#bows"), n = 12;
   for (let i = 0; i < n; i++) {
     const s = document.createElement("span");
     s.textContent = "🎀";
@@ -413,8 +434,9 @@ function enterRoom(type, id){
       presence: chatBox.querySelector("[data-presence]"),
       pname: chatBox.querySelector("[data-pname]"),
       typing: chatBox.querySelector("[data-typing]"),
+      replybar: chatBox.querySelector("[data-replybar]"),
     },
-    typingT: null, typingSent: 0, beatI: null,
+    typingT: null, typingSent: 0, beatI: null, byId: null, replyTo: null,
     local: null, outCalls: new Map(), inCall: null,
   };
   chatBox.querySelector("[data-home]").onclick = () => { location.hash = ""; };
@@ -424,6 +446,7 @@ function enterRoom(type, id){
   S.chat.msgs.addEventListener("scroll", onMsgsScroll, { passive: true });
   setupEmoji(chatBox);
   setupHearts();
+  setupReplies();
   S.chat.input.addEventListener("blur", () => sendTyping(false));
   paintNames();
   renderMsgs();
@@ -449,7 +472,8 @@ function leaveRoom(){
   if (!S) return;
   gen++;
   clearTimeout(S.retryT); clearInterval(S.beatI); clearTimeout(S.typingT);
-  if (S.timerRAF) cancelAnimationFrame(S.timerRAF);
+  clearInterval(S.timerI);
+  flushSave();
   if (S.local) S.local.getTracks().forEach(t => t.stop());
   try { S.peer && S.peer.destroy(); } catch {}
   relayStop(S.relay);
@@ -529,7 +553,7 @@ function setupConn(c, g){
     const prev = S.conns.get(c.peer); if (prev && prev !== c) { try { prev.close(); } catch {} }
     c._seen = Date.now();
     S.conns.set(c.peer, c);
-    c.send({ t: "sync", msgs: S.msgs, timer: S.type === "s" ? timerSnapshot() : null, host: S.isHost });
+    c.send({ t: "sync", msgs: syncList(), timer: S.type === "s" ? timerSnapshot() : null, host: S.isHost });
     updatePresence();
     if (S.local) callPeer(c.peer);
   });
@@ -622,7 +646,7 @@ function onRelay(d){
   if (isNew) updatePresence();
   if (d.t === "here") return;
   if (d.t === "hello") {
-    relaySend({ t: "sync", msgs: S.msgs.slice(-300).map(({ id, text, from, ts, h }) => (h ? { id, text, from, ts, h } : { id, text, from, ts })), timer: S.type === "s" ? timerSnapshot() : null, host: false });
+    relaySend({ t: "sync", msgs: syncList(), timer: S.type === "s" ? timerSnapshot() : null, host: false });
     return;
   }
   onData(d, null);
@@ -650,7 +674,7 @@ function onData(d, c){
   } else if (d.t === "heart" && typeof d.id === "string" && typeof d.who === "string") {
     const m = S.msgs.find(x => x.id === d.id);
     if (m && mergeHearts(m, { [d.who]: d.v })) {
-      saveMsgs(); renderMsgs();
+      scheduleSave(); patchMsg(m.id);
       if (d.v[0] === 1 && d.who !== ME) { ding(); const el = S.chat.msgs.querySelector('[data-id="' + CSS.escape(m.id) + '"]'); if (el) heartPop(el); }
     }
   } else if (d.t === "ack" && Array.isArray(d.ids)) {
@@ -690,22 +714,38 @@ function mergeHearts(m, h){
   }
   return ch;
 }
+function cleanReply(r){
+  if (!r || typeof r !== "object" || typeof r.id !== "string" || typeof r.text !== "string" || typeof r.from !== "string") return null;
+  return { id: r.id.slice(0, 80), text: r.text.slice(0, 140), from: r.from.slice(0, 40) };
+}
+function syncList(){
+  return S.msgs.slice(-300).map(({ id, text, from, ts, h, r }) => {
+    const o = { id, text, from, ts }; if (h) o.h = h; if (r) o.r = r; return o;
+  });
+}
 function mergeMsgs(list, live){
-  const byId = new Map(S.msgs.map(m => [m.id, m])); let added = false, changed = false;
+  const byId = S.byId || (S.byId = new Map(S.msgs.map(m => [m.id, m])));
+  const fresh = [], touched = [];
   for (const m of list) {
     if (!validMsg(m)) continue;
     const ex = byId.get(m.id);
-    if (ex) { if (m.h && mergeHearts(ex, m.h)) changed = true; continue; }
+    if (ex) { if (m.h && mergeHearts(ex, m.h)) touched.push(ex.id); continue; }
     const k = live && m.from !== ME ? Date.now() : sortKey(m);
     const nm = { id: m.id, text: m.text.slice(0, 2000), from: m.from, ts: m.ts, k, ok: m.from !== ME };
     const h = cleanHearts(m.h); if (Object.keys(h).length) nm.h = h;
-    S.msgs.push(nm); byId.set(m.id, nm); added = true;
+    const r = cleanReply(m.r); if (r) nm.r = r;
+    S.msgs.push(nm); byId.set(m.id, nm); fresh.push(nm);
   }
-  if (!added) { if (changed) { saveMsgs(); renderMsgs(); } return false; }
+  if (!fresh.length) { if (touched.length) { scheduleSave(); touched.forEach(patchMsg); } return false; }
+  const before = S.msgs.length - fresh.length;
   S.msgs.sort((a, b) => (a.k - b.k) || (a.ts - b.ts));
-  S.msgs = S.msgs.slice(-10000);
-  saveMsgs();
-  renderMsgs();
+  if (S.msgs.length > 10000) { S.msgs = S.msgs.slice(-10000); S.byId = null; }
+  scheduleSave();
+  // common case: the new messages simply go at the end -> just add them
+  const tail = S.msgs.slice(-fresh.length), fs = new Set(fresh.map(m => m.id));
+  if (S.rendered && before > 0 && tail.every(m => fs.has(m.id))) appendMsgs(tail);
+  else renderMsgs();
+  touched.forEach(patchMsg);
   return true;
 }
 // soft two-note chime for incoming messages
@@ -723,13 +763,19 @@ function ding(){
   } catch {}
 }
 // save the room's messages; if the device storage is full, drop only the oldest ones until it fits
+let saveT = null;
+function scheduleSave(){ clearTimeout(saveT); saveT = setTimeout(() => { saveT = null; if (S) saveMsgs(); }, 700); }
+function flushSave(){ if (saveT) { clearTimeout(saveT); saveT = null; if (S) saveMsgs(); } }
 function saveMsgs(){
-  while (!store.set(msgKey(S.type, S.id), S.msgs) && S.msgs.length > 50) S.msgs = S.msgs.slice(Math.ceil(S.msgs.length * 0.05));
+  while (!store.set(msgKey(S.type, S.id), S.msgs) && S.msgs.length > 50) { S.msgs = S.msgs.slice(Math.ceil(S.msgs.length * 0.05)); S.byId = null; }
 }
 function markDelivered(ids){
   const set = new Set(ids); let ch = false;
-  for (const m of S.msgs) if (set.has(m.id) && !m.ok) { m.ok = true; ch = true; }
-  if (ch) { saveMsgs(); renderMsgs(); }
+  for (const m of S.msgs.slice(-600)) if (set.has(m.id) && !m.ok) {
+    m.ok = true; ch = true;
+    const el = msgEl(m.id), k = el && el.querySelector(".tick"); if (k) k.textContent = "✓✓";
+  }
+  if (ch) scheduleSave();
 }
 function sendTyping(on){
   if (!S) return;
@@ -765,12 +811,13 @@ function setupEmoji(chatBox){
     b.onclick = () => { cat = i - 1; search.value = ""; paint(); grid.scrollTop = 0; };
     cats.appendChild(b);
   });
-  function fill(list){
-    grid.innerHTML = "";
-    if (!list.length) { const e = document.createElement("div"); e.className = "eempty"; e.textContent = "🎀"; grid.appendChild(e); return; }
-    const frag = document.createDocumentFragment();
-    for (const em of list) { const b = document.createElement("button"); b.type = "button"; b.textContent = em; frag.appendChild(b); }
-    grid.appendChild(frag);
+  const catCache = new Map();
+  const mk = em => { const b = document.createElement("button"); b.type = "button"; b.textContent = em; return b; };
+  function fill(list, key){
+    if (!list.length) { const e = document.createElement("div"); e.className = "eempty"; e.textContent = "🎀"; grid.replaceChildren(e); return; }
+    let nodes = key !== undefined && catCache.get(key);
+    if (!nodes) { nodes = list.map(mk); if (key !== undefined) catCache.set(key, nodes); }
+    grid.replaceChildren(...nodes);
   }
   function paint(){
     cats.querySelectorAll("button").forEach(b => b.classList.toggle("on", +b.dataset.cat === cat && !search.value.trim()));
@@ -778,7 +825,7 @@ function setupEmoji(chatBox){
     const q = search.value.trim().toLocaleLowerCase("tr");
     if (q) { const words = q.split(/\s+/); fill(emojiData.filter(e => words.every(w => e[2].includes(w) || e[1] === w)).slice(0, 400).map(e => e[1])); }
     else if (cat === -1) fill(recentEmojis());
-    else fill(emojiData.filter(e => e[0] === cat).map(e => e[1]));
+    else fill(catCache.has(cat) ? [1] : emojiData.filter(e => e[0] === cat).map(e => e[1]), cat);
   }
   grid.addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
@@ -789,11 +836,13 @@ function setupEmoji(chatBox){
     store.set("bb-recent-emoji", [em, ...recentEmojis().filter(x => x !== em)].slice(0, 40));
     if (matchMedia("(pointer:fine)").matches) input.focus();
   });
-  search.addEventListener("input", paint);
+  let searchT = null;
+  search.addEventListener("input", () => { clearTimeout(searchT); searchT = setTimeout(paint, 140); });
   const open = on => {
     panel.hidden = !on; btn.classList.toggle("on", on);
-    if (on) { loadEmojis().then(paint); paint(); }
-    S.chat.msgs.scrollTop = S.chat.msgs.scrollHeight;
+    const box = S.chat.msgs, atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+    if (on) { if (emojiData) paint(); else { fill([]); loadEmojis().then(paint); } }
+    if (atBottom) box.scrollTop = box.scrollHeight;
   };
   btn.onclick = () => open(panel.hidden);
   S.chat.msgs.addEventListener("click", () => { if (!panel.hidden) open(false); });
@@ -811,8 +860,8 @@ function toggleHeart(id, el){
   const on = !(m.h && m.h[ME] && m.h[ME][0] === 1);
   const v = [on ? 1 : 0, Date.now()];
   m.h = { ...(m.h || {}), [ME]: v };
-  saveMsgs(); renderMsgs();
-  if (on && el) heartPop(el);
+  scheduleSave(); patchMsg(m.id);
+  if (on) { const ne = msgEl(id); if (ne) heartPop(ne); }
   broadcast({ t: "heart", id, who: ME, v });
 }
 function heartPop(el){
@@ -821,10 +870,61 @@ function heartPop(el){
   p.style.left = (r.left + r.width / 2) + "px"; p.style.top = (r.top + r.height / 2) + "px";
   document.body.appendChild(p); setTimeout(() => p.remove(), 800);
 }
+function startReply(id){
+  const m = S.byId ? S.byId.get(id) : S.msgs.find(x => x.id === id); if (!m) return;
+  S.replyTo = m;
+  const bar = S.chat.replybar;
+  bar.querySelector("[data-rname]").textContent = nameOf(m.from);
+  bar.querySelector("[data-rtext]").textContent = m.text;
+  bar.hidden = false;
+  if (matchMedia("(pointer:fine)").matches) S.chat.input.focus();
+  const box = S.chat.msgs; if (box.scrollHeight - box.scrollTop - box.clientHeight < 120) box.scrollTop = box.scrollHeight;
+}
+function cancelReply(){ if (!S) return; S.replyTo = null; S.chat.replybar.hidden = true; }
+function jumpTo(id){
+  let el = msgEl(id);
+  if (!el) {
+    const idx = S.msgs.findIndex(x => x.id === id); if (idx < 0) return;
+    S.showN = Math.max(S.showN, S.msgs.length - idx + 20); renderMsgs(true); el = msgEl(id);
+  }
+  if (!el) return;
+  el.scrollIntoView({ block: "center" });
+  el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+}
+function setupReplies(){
+  const box = S.chat.msgs;
+  box.addEventListener("click", e => {
+    const rb = e.target.closest(".rbtn"); if (rb) { startReply(rb.closest(".msg").dataset.id); return; }
+    const q = e.target.closest(".quote"); if (q) jumpTo(q.dataset.rid);
+  });
+  S.chat.replybar.querySelector("[data-rcancel]").onclick = cancelReply;
+  S.chat.input.addEventListener("keydown", e => { if (e.key === "Escape" && S.replyTo) cancelReply(); });
+  // swipe a message to the right to reply (phones)
+  let sw = null;
+  box.addEventListener("touchstart", e => {
+    const el = e.target.closest(".msg"); if (!el || e.touches.length !== 1) { sw = null; return; }
+    sw = { el, x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, lock: null };
+  }, { passive: true });
+  box.addEventListener("touchmove", e => {
+    if (!sw) return;
+    const dx = e.touches[0].clientX - sw.x, dy = e.touches[0].clientY - sw.y;
+    if (sw.lock === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) sw.lock = Math.abs(dx) > Math.abs(dy) && dx > 0 ? "x" : "y";
+    if (sw.lock !== "x") return;
+    sw.dx = Math.max(0, Math.min(dx, 80));
+    sw.el.classList.add("swiping"); sw.el.style.transform = "translateX(" + sw.dx + "px)";
+  }, { passive: true });
+  box.addEventListener("touchend", () => {
+    if (!sw) return;
+    const { el, dx, lock } = sw; sw = null;
+    if (lock !== "x") return;
+    el.classList.remove("swiping"); el.style.transform = "";
+    if (dx > 55) { startReply(el.dataset.id); try { navigator.vibrate && navigator.vibrate(15); } catch {} }
+  });
+}
 function setupHearts(){
   const box = S.chat.msgs; let lastTap = { id: null, t: 0 };
   box.addEventListener("dblclick", e => {
-    const el = e.target.closest(".msg"); if (!el) return;
+    const el = e.target.closest(".msg"); if (!el || e.target.closest(".rbtn,.quote")) return;
     e.preventDefault(); try { getSelection().removeAllRanges(); } catch {}
     toggleHeart(el.dataset.id, el);
   });
@@ -844,34 +944,62 @@ function sendMsg(){
   const text = S.chat.input.value.trim();
   if (!text) return;
   const m = { id: ME + "-" + Date.now() + "-" + rid(3), text, from: ME, ts: Date.now() };
+  if (S.replyTo) m.r = { id: S.replyTo.id, text: S.replyTo.text.slice(0, 140), from: S.replyTo.from };
   S.chat.input.value = "";
   S.typingSent = 0;
+  cancelReply();
   mergeMsgs([m]);
   S.chat.msgs.scrollTop = S.chat.msgs.scrollHeight;
-  broadcast({ t: "msg", m: { id: m.id, text: m.text, from: m.from, ts: m.ts } });
+  broadcast({ t: "msg", m });
 }
 const fmtTime = ts => { const d = new Date(ts); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
 const PAGE = 400;
+const nameOf = from => from === ME ? (MYNAME || "🎀") : partnerName();
+const bigCache = new Map();
+function isBig(t){ let v = bigCache.get(t); if (v === undefined) { v = isBigEmoji(t); if (bigCache.size > 3000) bigCache.clear(); bigCache.set(t, v); } return v; }
+function buildMsgEl(m){
+  const el = document.createElement("div");
+  el.className = "msg " + (m.from === ME ? "me" : "them") + (!m.r && isBig(m.text) ? " big" : "");
+  el.dataset.id = m.id;
+  if (m.r) {
+    const q = document.createElement("span"); q.className = "quote"; q.dataset.rid = m.r.id;
+    const b = document.createElement("b"); b.textContent = nameOf(m.r.from);
+    q.append(b, document.createTextNode(m.r.text)); el.appendChild(q);
+  }
+  el.appendChild(document.createTextNode(m.text));
+  const t = document.createElement("time"); t.textContent = fmtTime(m.k);
+  if (m.from === ME) { const k = document.createElement("span"); k.className = "tick"; k.textContent = m.ok ? "✓✓" : "✓"; t.appendChild(k); }
+  el.appendChild(t);
+  const hs = m.h ? Object.values(m.h).filter(v => v[0] === 1).length : 0;
+  if (hs) { const hb = document.createElement("span"); hb.className = "hearts"; hb.textContent = hs > 1 ? "❤️ 2" : "❤️"; el.appendChild(hb); el.classList.add("hearted"); }
+  const rb = document.createElement("button"); rb.type = "button"; rb.className = "rbtn"; rb.textContent = "↩️"; rb.setAttribute("aria-label", "↩️");
+  el.appendChild(rb);
+  return el;
+}
+function msgEl(id){ return S.chat.msgs.querySelector('[data-id="' + CSS.escape(id) + '"]'); }
+function patchMsg(id){
+  const el = msgEl(id), m = S.byId ? S.byId.get(id) : S.msgs.find(x => x.id === id);
+  if (el && m) el.replaceWith(buildMsgEl(m));
+}
+function appendMsgs(list){
+  const box = S.chat.msgs;
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  const empty = box.querySelector(".empty"); if (empty) empty.remove();
+  const frag = document.createDocumentFragment();
+  for (const m of list) frag.appendChild(buildMsgEl(m));
+  box.appendChild(frag);
+  S.showN = (S.showN || PAGE) + list.length;
+  if (atBottom || list.some(m => m.from === ME)) box.scrollTop = box.scrollHeight;
+}
 function renderMsgs(keepTop){
   const box = S.chat.msgs;
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
   const oldH = box.scrollHeight, oldTop = box.scrollTop;
-  box.innerHTML = "";
-  if (!S.msgs.length) { const e = document.createElement("div"); e.className = "empty"; e.textContent = "🎀"; box.appendChild(e); return; }
+  if (!S.msgs.length) { const e = document.createElement("div"); e.className = "empty"; e.textContent = "🎀"; box.replaceChildren(e); return; }
   if (!S.showN) S.showN = PAGE;
   const frag = document.createDocumentFragment();
-  for (const m of S.msgs.slice(-S.showN)) {
-    const el = document.createElement("div"); el.className = "msg " + (m.from === ME ? "me" : "them") + (isBigEmoji(m.text) ? " big" : "");
-    el.textContent = m.text;
-    const t = document.createElement("time"); t.textContent = fmtTime(m.k);
-    if (m.from === ME) { const k = document.createElement("span"); k.className = "tick"; k.textContent = m.ok ? "✓✓" : "✓"; t.appendChild(k); }
-    el.appendChild(t);
-    el.dataset.id = m.id;
-    const hs = m.h ? Object.values(m.h).filter(v => v[0] === 1).length : 0;
-    if (hs) { const hb = document.createElement("span"); hb.className = "hearts"; hb.textContent = hs > 1 ? "❤️ 2" : "❤️"; el.appendChild(hb); el.classList.add("hearted"); }
-    frag.appendChild(el);
-  }
-  box.appendChild(frag);
+  for (const m of S.msgs.slice(-S.showN)) frag.appendChild(buildMsgEl(m));
+  box.replaceChildren(frag);
   if (keepTop) box.scrollTop = box.scrollHeight - oldH + oldTop;
   else if (atBottom || !S.rendered) box.scrollTop = box.scrollHeight;
   else box.scrollTop = oldTop;
@@ -924,8 +1052,8 @@ function initTimer(){
     $("#customMin").value = ""; $("#customMin").blur();
     setTimer(false, 0, n * 60000);
   };
-  const tick = () => { if (!S || S.type !== "s") return; paintClock(); S.timerRAF = requestAnimationFrame(tick); };
-  paintTimer(); tick();
+  paintTimer();
+  S.timerI = setInterval(() => { if (S && S.type === "s") paintClock(); }, 250);
 }
 const p2 = n => String(n).padStart(2, "0");
 let lastClock = "";
@@ -942,7 +1070,8 @@ function paintClock(){
     lastClock = key;
     $("#clock").innerHTML = p2(h) + '<span class="colon">:</span>' + p2(m) + '<span class="colon">:</span>' + p2(sec);
   }
-  $("#ring").style.setProperty("--p", (rem / S.timer.dur).toFixed(4));
+  const pv = (rem / S.timer.dur).toFixed(3);
+  if (pv !== S.ringP) { S.ringP = pv; $("#ring").style.setProperty("--p", pv); }
 }
 function paintTimer(){
   const b = $("#tToggle"); b.textContent = S.timer.running ? "⏸" : "▶"; b.setAttribute("aria-label", b.textContent);
@@ -1057,7 +1186,8 @@ $("#installBtn").onclick = async () => {
 };
 if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
 
-window.addEventListener("pagehide", () => { if (S) broadcast({ t: "bye" }); });
+window.addEventListener("pagehide", () => { if (S) { flushSave(); broadcast({ t: "bye" }); } });
+document.addEventListener("visibilitychange", () => { if (document.hidden) flushSave(); });
 if (!MYNAME) askWho();
 route();
 })();
