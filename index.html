@@ -138,7 +138,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--rose);outline-o
 /* chat */
 .chat{display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .chat-head{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;font-size:22px;border-bottom:2px dashed var(--petal)}
-.msgs{flex:1;min-height:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth}
+.msgs{flex:1;min-height:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
 .msg{max-width:80%;padding:9px 14px;border-radius:20px;font-size:16px;line-height:1.35;word-wrap:break-word;overflow-wrap:anywhere;white-space:pre-wrap;position:relative}
 .msg.them{align-self:flex-start;background:#fff;border-bottom-left-radius:6px;box-shadow:0 4px 12px -8px rgba(224,69,127,.6)}
 .msg.me{align-self:flex-end;background:linear-gradient(160deg,var(--rose),var(--berry));color:#fff;border-bottom-right-radius:6px}
@@ -286,7 +286,7 @@ const PREFIX = "bbhome-v1-";
 const $ = s => document.querySelector(s);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch{ return d; } },
-  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch{ return false; } },
   del(k){ try{ localStorage.removeItem(k); }catch{} }
 };
 const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
@@ -335,7 +335,7 @@ const msgKey = (type, id) => "bb-msgs-" + type + "-" + id;
     const seen = new Set(), merged = [];
     for (const m of buckets[type]) if (m && m.id && !seen.has(m.id)) { seen.add(m.id); merged.push(m); }
     merged.sort((a, b) => a.ts - b.ts);
-    if (merged.length) store.set(msgKey(type, HOUSE), merged.slice(-5000));
+    if (merged.length) store.set(msgKey(type, HOUSE), merged.slice(-10000));
   }
   store.set("bb-mig", 3);
 })();
@@ -391,6 +391,7 @@ function enterRoom(type, id){
   chatBox.querySelector("[data-link]").onclick = copyLink;
   S.chat.form.onsubmit = e => { e.preventDefault(); sendMsg(); };
   S.chat.input.addEventListener("input", onTypingInput);
+  S.chat.msgs.addEventListener("scroll", onMsgsScroll, { passive: true });
   S.chat.input.addEventListener("blur", () => sendTyping(false));
   paintNames();
   renderMsgs();
@@ -630,8 +631,8 @@ function mergeMsgs(list){
   for (const m of list) if (validMsg(m) && !have.has(m.id)) { S.msgs.push({ id: m.id, text: m.text.slice(0, 2000), from: m.from, ts: m.ts, ok: m.from !== ME }); have.add(m.id); added = true; }
   if (!added) return false;
   S.msgs.sort((a, b) => a.ts - b.ts);
-  S.msgs = S.msgs.slice(-5000);
-  store.set(msgKey(S.type, S.id), S.msgs);
+  S.msgs = S.msgs.slice(-10000);
+  saveMsgs();
   renderMsgs();
   return true;
 }
@@ -649,10 +650,14 @@ function ding(){
     });
   } catch {}
 }
+// save the room's messages; if the device storage is full, drop only the oldest ones until it fits
+function saveMsgs(){
+  while (!store.set(msgKey(S.type, S.id), S.msgs) && S.msgs.length > 50) S.msgs = S.msgs.slice(Math.ceil(S.msgs.length * 0.05));
+}
 function markDelivered(ids){
   const set = new Set(ids); let ch = false;
   for (const m of S.msgs) if (set.has(m.id) && !m.ok) { m.ok = true; ch = true; }
-  if (ch) { store.set(msgKey(S.type, S.id), S.msgs); renderMsgs(); }
+  if (ch) { saveMsgs(); renderMsgs(); }
 }
 function sendTyping(on){
   if (!S) return;
@@ -677,21 +682,35 @@ function sendMsg(){
   S.chat.input.value = "";
   S.typingSent = 0;
   mergeMsgs([m]);
+  S.chat.msgs.scrollTop = S.chat.msgs.scrollHeight;
   broadcast({ t: "msg", m: { id: m.id, text: m.text, from: m.from, ts: m.ts } });
 }
 const fmtTime = ts => { const d = new Date(ts); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
-function renderMsgs(){
-  const box = S.chat.msgs; box.innerHTML = "";
+const PAGE = 400;
+function renderMsgs(keepTop){
+  const box = S.chat.msgs;
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  const oldH = box.scrollHeight, oldTop = box.scrollTop;
+  box.innerHTML = "";
   if (!S.msgs.length) { const e = document.createElement("div"); e.className = "empty"; e.textContent = "🎀"; box.appendChild(e); return; }
-  for (const m of S.msgs) {
+  if (!S.showN) S.showN = PAGE;
+  const frag = document.createDocumentFragment();
+  for (const m of S.msgs.slice(-S.showN)) {
     const el = document.createElement("div"); el.className = "msg " + (m.from === ME ? "me" : "them");
     el.textContent = m.text;
     const t = document.createElement("time"); t.textContent = fmtTime(m.ts);
     if (m.from === ME) { const k = document.createElement("span"); k.className = "tick"; k.textContent = m.ok ? "✓✓" : "✓"; t.appendChild(k); }
     el.appendChild(t);
-    box.appendChild(el);
+    frag.appendChild(el);
   }
-  box.scrollTop = box.scrollHeight;
+  box.appendChild(frag);
+  if (keepTop) box.scrollTop = box.scrollHeight - oldH + oldTop;
+  else if (atBottom || !S.rendered) box.scrollTop = box.scrollHeight;
+  else box.scrollTop = oldTop;
+  S.rendered = true;
+}
+function onMsgsScroll(){
+  if (S.chat.msgs.scrollTop < 60 && S.showN < S.msgs.length) { S.showN += PAGE; renderMsgs(true); }
 }
 
 /* ---------- study timer ---------- */
