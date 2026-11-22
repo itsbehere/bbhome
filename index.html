@@ -183,7 +183,23 @@ body.inroom .bows span{animation-play-state:paused}
 .msg.me .rbtn{left:-40px}
 .msg.them .rbtn{right:-40px}
 .msg:hover .rbtn,.rbtn:focus-visible{opacity:1}
-@media (hover:none){.rbtn{display:none}}
+.dbtn{position:absolute;top:50%;transform:translateY(-50%);left:-76px;width:32px;height:32px;border-radius:50%;background:#fff;font-size:16px;font-weight:700;color:var(--berry);display:grid;place-items:center;
+  box-shadow:0 3px 10px -4px rgba(224,69,127,.6);opacity:0;transition:opacity .15s}
+.msg.them .dbtn{left:auto;right:-76px}
+.msg.deleted .dbtn{left:-40px}.msg.them.deleted .dbtn{left:auto;right:-40px}
+.msg:hover .dbtn,.dbtn:focus-visible{opacity:1}
+.msg.sel{box-shadow:0 0 0 3px var(--rose)!important}
+.msg.deleted{background:var(--blush)!important;color:var(--plum)!important;opacity:.75;font-size:15px;box-shadow:inset 0 0 0 1.5px var(--petal)!important}
+.msg.deleted time{color:var(--plum)}
+.msgmenu{position:absolute;z-index:6;display:flex;gap:2px;padding:5px;border-radius:999px;background:#fff;box-shadow:0 10px 30px -8px rgba(122,40,80,.45),inset 0 0 0 1.5px var(--petal);animation:mpop .14s ease-out}
+@keyframes mpop{from{opacity:0;transform:scale(.85)}}
+.msgmenu button{width:44px;height:44px;border-radius:50%;font-size:21px;display:grid;place-items:center;transition:background .12s}
+.msgmenu button:hover,.msgmenu button:focus-visible{background:var(--blush)}
+.msgmenu.danger{background:#fff5f8}
+.msgmenu.danger button.del{background:rgba(224,69,127,.12);position:relative}
+.msgmenu.danger button.del::after{content:"🗑️";position:absolute;right:-2px;bottom:-2px;font-size:13px}
+.msgmenu.danger button.del:hover{background:rgba(224,69,127,.25)}
+@media (hover:none){.rbtn,.dbtn{display:none}.msg{user-select:none;-webkit-user-select:none}}
 .msg.flash{animation:flash 1.2s ease}
 @keyframes flash{0%,100%{filter:none}30%{filter:brightness(1.08) drop-shadow(0 0 10px var(--rose))}}
 .msg.swiping{transition:none}
@@ -451,6 +467,7 @@ function enterRoom(type, id){
   setupEmoji(chatBox);
   setupHearts();
   setupReplies();
+  setupMenu();
   S.chat.input.addEventListener("blur", () => sendTyping(false));
   paintNames();
   renderMsgs();
@@ -565,7 +582,7 @@ function setupConn(c, g){
     c._seen = Date.now();
     S.p2pFails = 0;
     S.conns.set(c.peer, c);
-    c.send({ t: "sync", msgs: syncList(), timer: S.type === "s" ? timerSnapshot() : null, host: S.isHost });
+    c.send({ t: "sync", msgs: syncList(), dels: myDeletedIds(), timer: S.type === "s" ? timerSnapshot() : null, host: S.isHost });
     updatePresence();
     if (S.local) callPeer(c.peer);
   });
@@ -663,7 +680,7 @@ function onRelay(d){
   if (d.t === "hello") {
     if (Date.now() - S.relay.helloAt < 3000) return;
     S.relay.helloAt = Date.now();
-    relaySend({ t: "sync", msgs: syncList(), timer: S.type === "s" ? timerSnapshot() : null, host: false });
+    relaySend({ t: "sync", msgs: syncList(), dels: myDeletedIds(), timer: S.type === "s" ? timerSnapshot() : null, host: false });
     return;
   }
   onData(d, null);
@@ -682,12 +699,19 @@ function onData(d, c){
   if (d.t === "ping") return;
   if (d.t === "bye") { if (c) { try { c.close(); } catch {} c._dead && c._dead(); } return; }
   if (d.t === "sync") {
+    if (Array.isArray(d.dels) && typeof d.me === "string") for (const id of d.dels.slice(0, 3000)) {
+      const m = typeof id === "string" && msgById(id);
+      if (m && !m.del && m.from === d.me) applyDelete(m);
+    }
     if (Array.isArray(d.msgs)) { mergeMsgs(d.msgs); const ids = d.msgs.filter(m => validMsg(m) && m.from !== ME).map(m => m.id); if (ids.length) broadcast({ t: "ack", ids }); }
     if (d.timer && S.type === "s") applyTimer(d.timer, d.host);
   } else if (d.t === "msg" && d.m) {
     showTyping(false);
     broadcast({ t: "ack", ids: [d.m.id] });
     if (mergeMsgs([d.m], true) && d.m.from !== ME) ding();
+  } else if (d.t === "del" && typeof d.id === "string") {
+    const m = S.byId ? S.byId.get(d.id) : S.msgs.find(x => x.id === d.id);
+    if (m && !m.del && m.from === d.me) applyDelete(m); // only the writer can delete
   } else if (d.t === "heart" && typeof d.id === "string" && typeof d.who === "string") {
     const m = S.msgs.find(x => x.id === d.id);
     if (m && mergeHearts(m, { [d.who]: d.v })) {
@@ -737,8 +761,10 @@ function cleanReply(r){
   if (!r || typeof r !== "object" || typeof r.id !== "string" || typeof r.text !== "string" || typeof r.from !== "string") return null;
   return { id: r.id.slice(0, 80), text: r.text.slice(0, 140), from: r.from.slice(0, 40) };
 }
+function myDeletedIds(){ return S.msgs.filter(m => m.del && m.from === ME).map(m => m.id).slice(-3000); }
 function syncList(){
-  return S.msgs.slice(-300).map(({ id, text, from, ts, h, r }) => {
+  return S.msgs.slice(-300).map(({ id, text, from, ts, h, r, del }) => {
+    if (del) return { id, text: "", from, ts, del: 1 };
     const o = { id, text, from, ts }; if (h) o.h = h; if (r) o.r = r; return o;
   });
 }
@@ -748,8 +774,13 @@ function mergeMsgs(list, live){
   for (const m of list) {
     if (!validMsg(m)) continue;
     const ex = byId.get(m.id);
-    if (ex) { if (m.h && mergeHearts(ex, m.h)) touched.push(ex.id); continue; }
+    if (ex) {
+      if (m.del === 1 && !ex.del && ex.from === m.from) { applyDelete(ex); continue; }
+      if (!ex.del && !ex.hid && m.h && mergeHearts(ex, m.h)) touched.push(ex.id);
+      continue;
+    }
     const k = live && m.from !== ME ? Date.now() : sortKey(m);
+    if (m.del === 1) { const tomb = { id: m.id, text: "", from: m.from, ts: m.ts, k, ok: true, del: 1 }; S.msgs.push(tomb); byId.set(m.id, tomb); fresh.push(tomb); continue; }
     const nm = { id: m.id, text: m.text.slice(0, 2000), from: m.from, ts: m.ts, k, ok: m.from !== ME };
     const h = cleanHearts(m.h); if (Object.keys(h).length) nm.h = h;
     const r = cleanReply(m.r); if (r) nm.r = r;
@@ -762,10 +793,13 @@ function mergeMsgs(list, live){
   scheduleSave();
   // common case: the new messages simply go at the end -> just add them
   const tail = S.msgs.slice(-fresh.length), fs = new Set(fresh.map(m => m.id));
-  if (S.rendered && before > 0 && tail.every(m => fs.has(m.id))) appendMsgs(tail);
-  else renderMsgs();
+  const visible = fresh.filter(m => !m.del);
+  if (visible.length) {
+    if (S.rendered && before > 0 && tail.every(m => fs.has(m.id))) appendMsgs(tail.filter(m => !m.del));
+    else renderMsgs();
+  }
   touched.forEach(patchMsg);
-  return true;
+  return visible.length > 0;
 }
 // soft two-note chime for incoming messages
 function ding(){
@@ -873,12 +907,13 @@ function isBigEmoji(t){
   try { return [...new Intl.Segmenter().segment(t.replace(/\s/g, ""))].length <= 3; } catch { return t.length <= 8; }
 }
 function toggleHeart(id, el){
-  const m = S.msgs.find(x => x.id === id); if (!m) return;
+  const m = S.msgs.find(x => x.id === id); if (!m || m.del || m.hid) return;
   const on = !(m.h && m.h[ME] && m.h[ME][0] === 1);
   const v = [on ? 1 : 0, Date.now()];
   m.h = { ...(m.h || {}), [ME]: v };
   scheduleSave(); patchMsg(m.id);
   if (on) { const ne = msgEl(id); if (ne) heartPop(ne); }
+  closeMenu();
   broadcast({ t: "heart", id, who: ME, v });
 }
 function heartPop(el){
@@ -888,7 +923,7 @@ function heartPop(el){
   document.body.appendChild(p); setTimeout(() => p.remove(), 800);
 }
 function startReply(id){
-  const m = S.byId ? S.byId.get(id) : S.msgs.find(x => x.id === id); if (!m) return;
+  const m = msgById(id); if (!m || m.del || m.hid) return;
   S.replyTo = m;
   const bar = S.chat.replybar;
   bar.querySelector("[data-rname]").textContent = nameOf(m.from);
@@ -897,6 +932,93 @@ function startReply(id){
   if (matchMedia("(pointer:fine)").matches) S.chat.input.focus();
   const box = S.chat.msgs; if (box.scrollHeight - box.scrollTop - box.clientHeight < 120) box.scrollTop = box.scrollHeight;
 }
+/* ---------- message menu (like WhatsApp): ❤️ ↩️ 📋 🗑️ -> 👥 for everyone / 👤 just for me ---------- */
+function applyDelete(m){
+  m.del = 1; m.text = ""; delete m.h; delete m.r;
+  scheduleSave();
+  const el = msgEl(m.id); if (el) el.remove();
+  if (!S.msgs.some(x => !x.hid && !x.del)) renderMsgs();
+  S.chat.msgs.querySelectorAll('.quote[data-rid="' + CSS.escape(m.id) + '"]').forEach(q => { const host = q.closest(".msg"); if (host) patchMsg(host.dataset.id); });
+  if (S.replyTo && S.replyTo.id === m.id) cancelReply();
+}
+function deleteForAll(id){
+  const m = msgById(id);
+  if (!m || m.del || m.from !== ME) return;
+  applyDelete(m);
+  broadcast({ t: "del", id });
+}
+function deleteForMe(id){
+  const m = msgById(id); if (!m) return;
+  m.hid = 1; scheduleSave();
+  const el = msgEl(id); if (el) el.remove();
+  if (!S.msgs.some(x => !x.hid)) renderMsgs();
+  if (S.replyTo && S.replyTo.id === id) cancelReply();
+}
+let menuEl = null;
+function closeMenu(){
+  if (menuEl) { menuEl.remove(); menuEl = null; }
+  if (S) S.chat.msgs.querySelectorAll(".msg.sel").forEach(e => e.classList.remove("sel"));
+}
+function openMenu(el, danger){
+  closeMenu();
+  const m = msgById(el.dataset.id); if (!m || m.hid) return;
+  const wrap = S.chat.msgs.parentElement;
+  const menu = document.createElement("div"); menu.className = "msgmenu" + (danger ? " danger" : "");
+  const add = (icon, fn, cls) => { const b = document.createElement("button"); b.type = "button"; b.textContent = icon; b.setAttribute("aria-label", icon); if (cls) b.className = cls; b.onclick = e => { e.stopPropagation(); fn(); }; menu.appendChild(b); };
+  if (!danger) {
+    if (!m.del) {
+      const mine = m.h && m.h[ME] && m.h[ME][0] === 1;
+      add(mine ? "💔" : "❤️", () => { closeMenu(); toggleHeart(m.id); });
+      add("↩️", () => { closeMenu(); startReply(m.id); });
+      add("📋", () => { closeMenu(); copyText(m.text); });
+    }
+    add("🗑️", () => openMenu(msgEl(m.id) || el, true));
+  } else {
+    if (m.from === ME && !m.del) add("👥", () => { closeMenu(); deleteForAll(m.id); }, "del");
+    add("👤", () => { closeMenu(); deleteForMe(m.id); }, "del");
+    add("✖", closeMenu);
+  }
+  el.classList.add("sel");
+  wrap.appendChild(menu); menuEl = menu; menuAt = Date.now();
+  // place it above the message (below if there is no room), lined up with the bubble's side
+  const wr = wrap.getBoundingClientRect(), er = el.getBoundingClientRect(), mw = menu.offsetWidth, mh = menu.offsetHeight;
+  let top = er.top - wr.top - mh - 8;
+  if (top < 4) top = Math.min(er.bottom - wr.top + 8, wr.height - mh - 4);
+  let left = m.from === ME ? er.right - wr.left - mw : er.left - wr.left;
+  left = Math.max(6, Math.min(left, wr.width - mw - 6));
+  menu.style.top = top + "px"; menu.style.left = left + "px";
+  try { navigator.vibrate && navigator.vibrate(15); } catch {}
+}
+async function copyText(t){
+  try { await navigator.clipboard.writeText(t); toast("📋 ✔️"); }
+  catch {
+    const ta = document.createElement("textarea"); ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); toast("📋 ✔️"); } catch {} ta.remove();
+  }
+}
+function setupMenu(){
+  const box = S.chat.msgs;
+  box.addEventListener("click", e => {
+    const db = e.target.closest(".dbtn");
+    if (db) { e.stopPropagation(); const el = db.closest(".msg"); if (el.classList.contains("sel")) closeMenu(); else openMenu(el); return; }
+  });
+  box.addEventListener("contextmenu", e => { const el = e.target.closest(".msg"); if (!el) return; e.preventDefault(); openMenu(el); });
+  box.addEventListener("scroll", closeMenu, { passive: true });
+  // phones: press and hold a message
+  let hold = null;
+  box.addEventListener("touchstart", e => {
+    const el = e.target.closest(".msg"); if (!el || e.touches.length !== 1) return;
+    const x = e.touches[0].clientX, y = e.touches[0].clientY;
+    hold = { x, y, t: setTimeout(() => { hold = null; openMenu(el); }, 480) };
+  }, { passive: true });
+  const cancelHold = () => { if (hold) { clearTimeout(hold.t); hold = null; } };
+  box.addEventListener("touchmove", e => { if (hold && Math.hypot(e.touches[0].clientX - hold.x, e.touches[0].clientY - hold.y) > 10) cancelHold(); }, { passive: true });
+  box.addEventListener("touchend", cancelHold);
+  box.addEventListener("touchcancel", cancelHold);
+}
+let menuAt = 0;
+document.addEventListener("click", e => { if (menuEl && Date.now() - menuAt > 450 && !e.target.closest(".msgmenu")) closeMenu(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeMenu(); });
 function cancelReply(){ if (!S) return; S.replyTo = null; S.chat.replybar.hidden = true; }
 function jumpTo(id){
   let el = msgEl(id);
@@ -911,6 +1033,7 @@ function jumpTo(id){
 function setupReplies(){
   const box = S.chat.msgs;
   box.addEventListener("click", e => {
+    if (e.target.closest(".dbtn")) return;
     const rb = e.target.closest(".rbtn"); if (rb) { startReply(rb.closest(".msg").dataset.id); return; }
     const q = e.target.closest(".quote"); if (q) jumpTo(q.dataset.rid);
   });
@@ -935,18 +1058,18 @@ function setupReplies(){
     const { el, dx, lock } = sw; sw = null;
     if (lock !== "x") return;
     el.classList.remove("swiping"); el.style.transform = "";
-    if (dx > 55) { startReply(el.dataset.id); try { navigator.vibrate && navigator.vibrate(15); } catch {} }
+    if (dx > 55 && !el.classList.contains("deleted")) { startReply(el.dataset.id); try { navigator.vibrate && navigator.vibrate(15); } catch {} }
   });
 }
 function setupHearts(){
   const box = S.chat.msgs; let lastTap = { id: null, t: 0 };
   box.addEventListener("dblclick", e => {
-    const el = e.target.closest(".msg"); if (!el || e.target.closest(".rbtn,.quote")) return;
+    const el = e.target.closest(".msg"); if (!el || el.classList.contains("deleted") || e.target.closest(".rbtn,.quote,.dbtn")) return;
     e.preventDefault(); try { getSelection().removeAllRanges(); } catch {}
     toggleHeart(el.dataset.id, el);
   });
   box.addEventListener("touchend", e => {
-    const el = e.target.closest(".msg"); if (!el || e.changedTouches.length !== 1) return;
+    const el = e.target.closest(".msg"); if (!el || e.changedTouches.length !== 1 || el.classList.contains("deleted") || menuEl) return;
     const now = Date.now();
     if (lastTap.id === el.dataset.id && now - lastTap.t < 350) { e.preventDefault(); lastTap = { id: null, t: 0 }; toggleHeart(el.dataset.id, el); }
     else lastTap = { id: el.dataset.id, t: now };
@@ -974,11 +1097,21 @@ const PAGE = 400;
 const nameOf = from => from === ME ? (MYNAME || "🎀") : partnerName();
 const bigCache = new Map();
 function isBig(t){ let v = bigCache.get(t); if (v === undefined) { v = isBigEmoji(t); if (bigCache.size > 3000) bigCache.clear(); bigCache.set(t, v); } return v; }
+function menuBtn(){ const db = document.createElement("button"); db.type = "button"; db.className = "dbtn"; db.textContent = "⋯"; db.setAttribute("aria-label", "⋯"); return db; }
 function buildMsgEl(m){
+  if (m.del) {
+    const el = document.createElement("div");
+    el.className = "msg deleted " + (m.from === ME ? "me" : "them"); el.dataset.id = m.id;
+    el.appendChild(document.createTextNode("🚫"));
+    const t = document.createElement("time"); t.textContent = fmtTime(m.k); el.appendChild(t);
+    el.appendChild(menuBtn());
+    return el;
+  }
   const el = document.createElement("div");
-  el.className = "msg " + (m.from === ME ? "me" : "them") + (!m.r && isBig(m.text) ? " big" : "");
+  el.className = "msg " + (m.from === ME ? "me" : "them") + ((!m.r || (msgById(m.r.id) || {}).del) && isBig(m.text) ? " big" : "");
   el.dataset.id = m.id;
-  if (m.r) {
+  const orig0 = m.r && msgById(m.r.id);
+  if (m.r && !(orig0 && orig0.del)) {
     const q = document.createElement("span"); q.className = "quote"; q.dataset.rid = m.r.id;
     const b = document.createElement("b"); b.textContent = nameOf(m.r.from);
     q.append(b, document.createTextNode(m.r.text)); el.appendChild(q);
@@ -991,8 +1124,10 @@ function buildMsgEl(m){
   if (hs) { const hb = document.createElement("span"); hb.className = "hearts"; hb.textContent = hs > 1 ? "❤️ 2" : "❤️"; el.appendChild(hb); el.classList.add("hearted"); }
   const rb = document.createElement("button"); rb.type = "button"; rb.className = "rbtn"; rb.textContent = "↩️"; rb.setAttribute("aria-label", "↩️");
   el.appendChild(rb);
+  el.appendChild(menuBtn());
   return el;
 }
+function msgById(id){ return (S.byId || (S.byId = new Map(S.msgs.map(x => [x.id, x])))).get(id); }
 function msgEl(id){ return S.chat.msgs.querySelector('[data-id="' + CSS.escape(id) + '"]'); }
 function patchMsg(id){
   const el = msgEl(id), m = S.byId ? S.byId.get(id) : S.msgs.find(x => x.id === id);
@@ -1012,10 +1147,10 @@ function renderMsgs(keepTop){
   const box = S.chat.msgs;
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
   const oldH = box.scrollHeight, oldTop = box.scrollTop;
-  if (!S.msgs.length) { const e = document.createElement("div"); e.className = "empty"; e.textContent = "🎀"; box.replaceChildren(e); return; }
+  if (!S.msgs.some(m => !m.hid && !m.del)) { const e = document.createElement("div"); e.className = "empty"; e.textContent = "🎀"; box.replaceChildren(e); return; }
   if (!S.showN) S.showN = PAGE;
   const frag = document.createDocumentFragment();
-  for (const m of S.msgs.slice(-S.showN)) frag.appendChild(buildMsgEl(m));
+  for (const m of S.msgs.slice(-S.showN)) if (!m.hid && !m.del) frag.appendChild(buildMsgEl(m));
   box.replaceChildren(frag);
   if (keepTop) box.scrollTop = box.scrollHeight - oldH + oldTop;
   else if (atBottom || !S.rendered) box.scrollTop = box.scrollHeight;
