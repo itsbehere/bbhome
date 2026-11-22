@@ -1340,7 +1340,19 @@ $("#installBtn").onclick = async () => {
   try { await installEvt.userChoice; } catch {}
   installEvt = null; $("#installBtn").hidden = true;
 };
-if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:") {
+  const openedAt = Date.now(), hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(r => r.update()).catch(() => {});
+  // a new version arrived right as the app opened: switch to it once (never in the middle of using it)
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (hadController && Date.now() - openedAt < 15000 && !sessionStorage.getItem("bb-upd")) {
+      try { sessionStorage.setItem("bb-upd", "1"); } catch {}
+      location.reload();
+    }
+  });
+  // coming back to the app after a while also checks for a new version
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {}); });
+}
 
 window.addEventListener("pagehide", () => { if (S) { flushSave(); broadcast({ t: "bye" }); } });
 document.addEventListener("visibilitychange", () => { if (document.hidden) flushSave(); });
