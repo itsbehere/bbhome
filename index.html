@@ -932,7 +932,7 @@ function startReply(id){
   if (matchMedia("(pointer:fine)").matches) S.chat.input.focus();
   const box = S.chat.msgs; if (box.scrollHeight - box.scrollTop - box.clientHeight < 120) box.scrollTop = box.scrollHeight;
 }
-/* ---------- message menu (like WhatsApp): ❤️ ↩️ 📋 🗑️ -> 👥 for everyone / 👤 just for me ---------- */
+/* ---------- message menu (like WhatsApp): ❤️ ↩️ 🗑️ -> 👥 for everyone / 👤 just for me ---------- */
 function applyDelete(m){
   m.del = 1; m.text = ""; delete m.h; delete m.r;
   scheduleSave();
@@ -970,7 +970,6 @@ function openMenu(el, danger){
       const mine = m.h && m.h[ME] && m.h[ME][0] === 1;
       add(mine ? "💔" : "❤️", () => { closeMenu(); toggleHeart(m.id); });
       add("↩️", () => { closeMenu(); startReply(m.id); });
-      add("📋", () => { closeMenu(); copyText(m.text); });
     }
     add("🗑️", () => openMenu(msgEl(m.id) || el, true));
   } else {
@@ -988,13 +987,6 @@ function openMenu(el, danger){
   left = Math.max(6, Math.min(left, wr.width - mw - 6));
   menu.style.top = top + "px"; menu.style.left = left + "px";
   try { navigator.vibrate && navigator.vibrate(15); } catch {}
-}
-async function copyText(t){
-  try { await navigator.clipboard.writeText(t); toast("📋 ✔️"); }
-  catch {
-    const ta = document.createElement("textarea"); ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select();
-    try { document.execCommand("copy"); toast("📋 ✔️"); } catch {} ta.remove();
-  }
 }
 function setupMenu(){
   const box = S.chat.msgs;
