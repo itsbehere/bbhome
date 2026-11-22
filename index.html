@@ -183,9 +183,9 @@ body.inroom .bows span{animation-play-state:paused}
 .msg.me .rbtn{left:-40px}
 .msg.them .rbtn{right:-40px}
 .msg:hover .rbtn,.rbtn:focus-visible{opacity:1}
-.dbtn{position:absolute;top:50%;transform:translateY(-50%);left:-76px;width:32px;height:32px;border-radius:50%;background:#fff;font-size:16px;font-weight:700;color:var(--berry);display:grid;place-items:center;
+.dbtn{position:absolute;top:50%;transform:translateY(-50%);left:-40px;width:32px;height:32px;border-radius:50%;background:#fff;font-size:16px;font-weight:700;color:var(--berry);display:grid;place-items:center;
   box-shadow:0 3px 10px -4px rgba(224,69,127,.6);opacity:0;transition:opacity .15s}
-.msg.them .dbtn{left:auto;right:-76px}
+.msg.them .dbtn{left:auto;right:-40px}
 .msg.deleted .dbtn{left:-40px}.msg.them.deleted .dbtn{left:auto;right:-40px}
 .msg:hover .dbtn,.dbtn:focus-visible{opacity:1}
 .msg.sel{box-shadow:0 0 0 3px var(--rose)!important}
@@ -1114,8 +1114,6 @@ function buildMsgEl(m){
   el.appendChild(t);
   const hs = m.h ? Object.values(m.h).filter(v => v[0] === 1).length : 0;
   if (hs) { const hb = document.createElement("span"); hb.className = "hearts"; hb.textContent = hs > 1 ? "❤️ 2" : "❤️"; el.appendChild(hb); el.classList.add("hearted"); }
-  const rb = document.createElement("button"); rb.type = "button"; rb.className = "rbtn"; rb.textContent = "↩️"; rb.setAttribute("aria-label", "↩️");
-  el.appendChild(rb);
   el.appendChild(menuBtn());
   return el;
 }
