@@ -1331,21 +1331,26 @@ $("#installBtn").onclick = async () => {
   installEvt = null; $("#installBtn").hidden = true;
 };
 if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:") {
-  let openedAt = Date.now(), reloaded = false;
-  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false, pending = false;
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(r => r.update()).catch(() => {});
-  // a new version arrived right as the app opened or came back from the background:
-  // switch to it once, but never while something is being typed
-  const busy = () => [...document.querySelectorAll("[data-input]")].some(i => i.value.trim()) || (S && S.local);
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (!hadController || reloaded || Date.now() - openedAt > 20000 || busy()) return;
-    reloaded = true; flushSave(); location.reload();
+  // never refresh while a message is being written or a screen share is on (either side)
+  const busy = () => [...document.querySelectorAll("[data-input]")].some(i => i.value.trim()) || !!(S && (S.local || S.remote));
+  const refresh = () => {
+    if (reloaded) return;
+    if (busy()) { pending = true; return; }
+    reloaded = true; try { flushSave(); } catch {} location.reload();
+  };
+  // the update helper says a new version is installed: refresh now, or as soon as it is safe
+  navigator.serviceWorker.addEventListener("message", e => {
+    if (!e.data || e.data.t !== "bb-update") return;
+    try { e.ports[0] && e.ports[0].postMessage("ok"); } catch {}
+    refresh();
   });
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) return;
-    openedAt = Date.now();
-    navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});
-  });
+  setInterval(() => { if (pending) refresh(); }, 2000);
+  // look for a new version when coming back to the app, and every 20 minutes while it is open
+  const check = () => navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
+  setInterval(check, 20 * 60000);
 }
 
 window.addEventListener("pagehide", () => { if (S) { flushSave(); broadcast({ t: "bye" }); } });
