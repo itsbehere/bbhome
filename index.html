@@ -582,7 +582,7 @@ function setupConn(c, g){
     c._seen = Date.now();
     S.p2pFails = 0;
     S.conns.set(c.peer, c);
-    c.send({ t: "sync", msgs: syncList(), dels: myDeletedIds(), timer: S.type === "s" ? timerSnapshot() : null, host: S.isHost });
+    c.send({ t: "sync", msgs: syncList(), n: S.msgs.length, dels: myDeletedIds(), timer: S.type === "s" ? timerSnapshot() : null, host: S.isHost });
     updatePresence();
     if (S.local) callPeer(c.peer);
   });
@@ -676,13 +676,15 @@ function onRelay(d){
   const isNew = !relayOnline();
   S.relay.seen.set(from, Date.now());
   if (isNew) updatePresence();
-  if (d.t === "here") return;
-  if (d.t === "hello") {
-    if (Date.now() - S.relay.helloAt < 3000) return;
-    S.relay.helloAt = Date.now();
-    relaySend({ t: "sync", msgs: syncList(), dels: myDeletedIds(), timer: S.type === "s" ? timerSnapshot() : null, host: false });
-    return;
+  // the other side just showed up (or said hello): send them what we have, both ways
+  if (isNew || d.t === "hello") {
+    if (Date.now() - S.relay.helloAt > 3000) {
+      S.relay.helloAt = Date.now();
+      relaySend({ t: "sync", msgs: syncList(), n: S.msgs.length, dels: myDeletedIds(), timer: S.type === "s" ? timerSnapshot() : null, host: false });
+    }
+    if (d.t === "hello") return;
   }
+  if (d.t === "here") return;
   onData(d, null);
 }
 
@@ -705,6 +707,7 @@ function onData(d, c){
     }
     if (Array.isArray(d.msgs)) { mergeMsgs(d.msgs); const ids = d.msgs.filter(m => validMsg(m) && m.from !== ME).map(m => m.id); if (ids.length) broadcast({ t: "ack", ids }); }
     if (d.timer && S.type === "s") applyTimer(d.timer, d.host);
+    if (typeof d.n === "number" && d.n - S.msgs.length > 5 && Date.now() - (S.askedAllAt || 0) > 60000) { S.askedAllAt = Date.now(); broadcast({ t: "needall" }); }
   } else if (d.t === "msg" && d.m) {
     showTyping(false);
     broadcast({ t: "ack", ids: [d.m.id] });
@@ -724,6 +727,10 @@ function onData(d, c){
     showTyping(!!d.on);
   } else if (d.t === "timer" && d.timer && S.type === "s") {
     applyTimer(d.timer, false);
+  } else if (d.t === "needall") {
+    sendAllHistory();
+  } else if (d.t === "hist" && Array.isArray(d.msgs)) {
+    mergeMsgs(d.msgs.slice(0, 400));
   } else if (d.t === "wantp2p") {
     wakeP2P();
   } else if (d.t === "unshare" && S.type === "w") {
@@ -762,11 +769,20 @@ function cleanReply(r){
   return { id: r.id.slice(0, 80), text: r.text.slice(0, 140), from: r.from.slice(0, 40) };
 }
 function myDeletedIds(){ return S.msgs.filter(m => m.del && m.from === ME).map(m => m.id).slice(-3000); }
-function syncList(){
-  return S.msgs.slice(-300).map(({ id, text, from, ts, h, r, del }) => {
-    if (del) return { id, text: "", from, ts, del: 1 };
-    const o = { id, text, from, ts }; if (h) o.h = h; if (r) o.r = r; return o;
-  });
+function wireMsg({ id, text, from, ts, h, r, del }){
+  if (del) return { id, text: "", from, ts, del: 1 };
+  const o = { id, text, from, ts }; if (h) o.h = h; if (r) o.r = r; return o;
+}
+function syncList(){ return S.msgs.slice(-300).map(wireMsg); }
+// the whole history, sent in pieces, to a side that is missing messages
+function sendAllHistory(){
+  if (Date.now() - (S.sentAllAt || 0) < 60000) return;
+  S.sentAllAt = Date.now();
+  const all = S.msgs.map(wireMsg), g = S.gen;
+  for (let i = 0, n = 0; i < all.length; i += 400, n++) {
+    const part = all.slice(i, i + 400);
+    setTimeout(() => { if (S && S.gen === g) broadcast({ t: "hist", msgs: part }); }, n * 400);
+  }
 }
 function mergeMsgs(list, live){
   const byId = S.byId || (S.byId = new Map(S.msgs.map(m => [m.id, m])));
@@ -1341,10 +1357,11 @@ if ("serviceWorker" in navigator && window.isSecureContext && location.protocol 
     reloaded = true; try { flushSave(); } catch {} location.reload();
   };
   // the update helper says a new version is installed: refresh now, or as soon as it is safe
+  const hadController = !!navigator.serviceWorker.controller; // false on the very first visit: nothing old to replace
   navigator.serviceWorker.addEventListener("message", e => {
     if (!e.data || e.data.t !== "bb-update") return;
     try { e.ports[0] && e.ports[0].postMessage("ok"); } catch {}
-    refresh();
+    if (hadController) refresh();
   });
   setInterval(() => { if (pending) refresh(); }, 2000);
   // look for a new version when coming back to the app, and every 20 minutes while it is open
